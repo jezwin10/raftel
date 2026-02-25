@@ -1,9 +1,18 @@
+/**
+ * Top-level navigation component.
+ *
+ * - Uses NavLink for active route styling.
+ * - Provides persistent navigation across all routes.
+ *
+ * Styling controlled via global design tokens.
+ */
+
 import { NavLink } from "react-router-dom"
 
 export function Header() {
     return (
         <header>
-            <h1>Raftel Platform</h1>
+            <h1>Raftel</h1>
             <nav>
                 <NavLink to="/" end className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
                     Home

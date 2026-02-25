@@ -1,3 +1,13 @@
+/**
+ * Root application component.
+ *
+ * Responsibilities:
+ * - Defines route structure.
+ * - Composes Layout with page-level routing.
+ *
+ * Does NOT contain layout or page logic directly.
+ */
+
 import { Routes, Route } from "react-router-dom"
 import { Layout } from "./layout/Layout"
 import { HomePage } from "./pages/HomePage"

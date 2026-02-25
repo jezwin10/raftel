@@ -1,3 +1,10 @@
+/**
+ * Simulator Page.
+ *
+ * Rendering of a solar system simulation - career development project.
+ * Will contain some layout logic along with content.
+ */
+
 export function SimulatorPage() {
     return (
         <>

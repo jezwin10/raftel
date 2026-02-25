@@ -1,3 +1,10 @@
+/**
+ * Media Page.
+ *
+ * Access to request media, plex, and controlled access
+ * Will have routing for plex and overseerr.
+ */
+
 export function MediaPage() {
     return (
         <>

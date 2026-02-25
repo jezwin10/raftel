@@ -1,3 +1,15 @@
+/*
+ Global Styles
+
+ - Resets
+ - Base typography
+ - Layout primitives
+ - Navigation styling
+ - Active link styles
+
+ Built on top of design tokens.
+*/
+
 @import "./tokens.css";
 
 * {
