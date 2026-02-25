@@ -1,3 +1,5 @@
+@import "./tokens.css";
+
 * {
     box-sizing: border-box;
     margin: 0;
@@ -6,37 +8,47 @@
 
 body {
     font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-    background: #0f172a;
-    color: #e2e8f0;
+    background: var(--color-bg);
+    color: var(--color-text-primary);
 }
 
 header {
-    padding: 1.5rem 2rem;
-    border-bottom: 1px solid #1e293b;
+    padding: var(--space-sm) var(--space-md);
+    border-bottom: 1px solid var(--color-border);
 }
 
 nav {
-    margin-top: 0.5rem;
+    margin-top: var(--space-xs);
     display: flex;
-    gap: 1.5rem;
+    gap: var(--space-sm);
 }
 
 nav a {
     text-decoration: none;
-    color: #94a3b8;
+    color: var(--color-text-secondary);
+    transition: color 0.2s ease;
 }
 
 nav a:hover {
-    color: #ffffff;
+    color: var(--color-text-primary);
 }
 
 main {
-    padding: 4rem 2rem;
-    max-width: 1000px;
+    padding: var(--space-lg) var(--space-md);
+    max-width: var(--max-width);
 }
 
 footer {
-    padding: 2rem;
-    border-top: 1px solid #1e293b;
-    color: #64748b;
+    padding: var(--space-md);
+    border-top: 1px solid var(--color-border);
+    color: var(--color-text-secondary);
+}
+
+.nav-link {
+    color: var(--color-text-secondary);
+}
+
+.nav-link.active {
+    color: var(--color-accent);
+    font-weight: 500;
 }
