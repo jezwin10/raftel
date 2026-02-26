@@ -11,16 +11,21 @@
 
 :root {
     --color-bg: #282828;
-    --color-surface: #111827;
+    --color-surface: #222222;
     --color-border: #1e293b;
     --color-text-primary: #e2e8f0;
     --color-text-secondary: #776a40;
     --color-accent: #ffce2a;
+    --color-accent-foreground: #000000;
+
+    --radius-sm: 6px;
+    --radius-md: 8px;
 
     --space-xs: 0.5rem;
     --space-sm: 1rem;
     --space-md: 2rem;
     --space-lg: 4rem;
+    --space-xl: 8rem;
 
     --max-width: 1000px;
 }

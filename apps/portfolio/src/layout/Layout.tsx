@@ -10,6 +10,7 @@
 import type { ReactNode } from "react"
 import { Header } from "./Header"
 import { Footer } from "./Footer"
+import { Container } from "../components/Container"
 
 type Props = {
     children: ReactNode
@@ -19,7 +20,9 @@ export function Layout({ children }: Props) {
     return (
         <div className="app">
             <Header />
-            <main>{children}</main>
+            <main className="main">
+                <Container>{children}</Container>
+            </main>
             <Footer />
         </div>
     )
