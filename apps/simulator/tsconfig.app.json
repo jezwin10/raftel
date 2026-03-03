@@ -24,5 +24,11 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
+  /*
+   * "src" already covers src/tests/** because it's a recursive glob.
+   * This is unchanged — just documenting explicitly that tests are included.
+   * TypeScript will type-check test files as part of the app project,
+   * which means your test code gets the same strict checks as production code.
+   */
   "include": ["src"]
 }
