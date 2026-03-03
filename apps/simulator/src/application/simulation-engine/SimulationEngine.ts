@@ -17,10 +17,9 @@ export class SimulationEngine {
         }
 
         /**
-         * Pairwise force computation.
          *
          * For each unique body pair:
-         * - Compute force on A from B.
+         * - Calculate force on A from B.
          * - Apply equal and opposite force on B.
          *
          * Ensures conservation of momentum.
