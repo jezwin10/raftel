@@ -90,7 +90,7 @@ describe('Vector2', () => {
             // The 3-4-5 triangle is the canonical human verifiable case:
             // sqrt(3^2 + 4^2) = (sqrt(9 + 16) = sqrt(25) = 5
             const v = new Vector2(3, 4)
-            expect(v.magnitude(0)).toBe(5)
+            expect(v.magnitude()).toBe(5)
         })
 
         it('returns 0 for the zero vector', () => {
