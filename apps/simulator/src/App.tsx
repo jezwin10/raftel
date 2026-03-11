@@ -1,33 +1,44 @@
 import { useSimulation } from './application/useSimulation.ts'
+import { BodyInfoPanel } from './components/BodyInfoPanel.tsx'
 
 /**
- * App — root component.
+ * Speed presets shown as quick-select buttons alongside the slider.
+ * Each entry is a [label, value] pair.
  *
- * Now destructures the full SimulationControls interface from useSimulation,
- * and renders a control panel alongside the canvas.
- *
- * --- WHY IS THE UI IN App.tsx AND NOT IN THE HOOK? ---
- * The hook manages simulation logic and exposes control functions.
- * The component decides how to present those controls visually.
- * This separation means you could swap the UI (buttons, keyboard shortcuts,
- * a different slider library) without touching simulation logic, and vice versa.
- *
- * --- REACT STATE AND RE-RENDERS ---
- * When the user clicks pause or moves the slider, React re-renders App.
- * This is fine — the re-render is cheap (just the controls overlay) and
- * the animation loop is not affected because it reads from refs, not
- * from anything React controls.
- *
- * The canvas itself does not re-render in the React sense. It's an
- * imperative surface that the hook updates directly every rAF tick.
- * React only manages the control panel elements.
+ * When the current speed matches a preset value exactly, that button
+ * is highlighted. The slider and buttons stay in sync because both
+ * read from and write to the same `speed` state in the hook.
  */
+const SPEED_PRESETS: [string, number][] = [
+    ['1×', 1],
+    ['2×', 2],
+    ['3×', 3],
+    ['5×', 5],
+]
 
 export function App() {
-    const { canvasRef, isPaused, togglePause, speed, setSpeed } = useSimulation()
+    const {
+        canvasRef,
+        isPaused,
+        togglePause,
+        speed,
+        setSpeed,
+        selectedBodyId,
+        clearSelection,
+    } = useSimulation()
 
     return (
+        /*
+         * position: relative on the outer container is required so that
+         * the BodyInfoPanel (position: absolute) is positioned relative
+         * to this container, not the viewport.
+         *
+         * Without this, `position: absolute` on the panel would walk up
+         * the DOM tree until it found a positioned ancestor — likely the
+         * viewport — and position itself there instead.
+         */
         <div style={{
+            position:        'relative',
             display:         'flex',
             flexDirection:   'column',
             justifyContent:  'center',
@@ -42,25 +53,28 @@ export function App() {
                 ref={canvasRef}
                 width={1000}
                 height={1000}
-                style={{ display: 'block', borderRadius: '4px' }}
+                style={{
+                    display: 'block',
+                    borderRadius: '4px',
+                    /**
+                     * cursor: crosshair gives the user a visual affordance
+                     * that the canvas is interactive/clickable.
+                     */
+                    cursor: 'crosshair',
+                }}
             />
 
-            {/*
-              * Controls panel.
-              *
-              * Deliberately minimal styling — this is a demo canvas app,
-              * not the portfolio UI. Inline styles keep it self-contained.
-              */}
+            {/* Controls bar */}
             <div style={{
-                display:        'flex',
-                alignItems:     'center',
-                gap:            '24px',
-                color:          '#B0BEC5',
-                fontFamily:     'monospace',
-                fontSize:       '13px',
+                display:     'flex',
+                alignItems:  'center',
+                gap:         '24px',
+                color:       '#B0BEC5',
+                fontFamily:  'monospace',
+                fontSize:    '13px',
             }}>
 
-                {/* Pause / Resume button */}
+                {/* Pause / Resume */}
                 <button
                     onClick={togglePause}
                     style={{
@@ -78,32 +92,55 @@ export function App() {
                     {isPaused ? '▶  Resume' : '⏸  Pause'}
                 </button>
 
-                {/*
-                  * Speed slider.
-                  *
-                  * Range: 0.25× to 8×, step 0.25.
-                  * The value label updates live as the slider moves because
-                  * `speed` is React state — any change triggers a re-render
-                  * of this label, showing the new value.
-                  *
-                  * The slider's onChange calls setSpeed, which updates both
-                  * the state (for the label) and the ref (for the loop).
-                  */}
-                <label style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    Speed
-                    <input
-                        type="range"
-                        min={0.25}
-                        max={8}
-                        step={0.25}
-                        value={speed}
-                        onChange={e => setSpeed(Number(e.target.value))}
-                        style={{ width: '120px', accentColor: '#4FC3F7' }}
-                    />
-                    <span style={{ minWidth: '36px' }}>{speed}×</span>
-                </label>
+                {/* Divider */}
+                <span style={{ color: '#263238' }}>|</span>
+
+                {/* Speed preset buttons */}
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                    <span style={{ color: '#546E7A', marginRight: '4px' }}>Speed</span>
+                    {SPEED_PRESETS.map(([label, value]) => (
+                        <button
+                            key={value}
+                            onClick={() => setSpeed(value)}
+                            style={{
+                                padding:         '4px 10px',
+                                backgroundColor: speed === value ? '#4FC3F7' : '#1C2A32',
+                                color:           speed === value ? '#0d0d1a' : '#78909C',
+                                border:          `1px solid ${speed === value ? '#4FC3F7' : '#263238'}`,
+                                borderRadius:    '4px',
+                                cursor:          'pointer',
+                                fontFamily:      'monospace',
+                                fontSize:        '12px',
+                                transition:      'all 0.1s',
+                            }}
+                        >
+                            {label}
+                        </button>
+                    ))}
+                </div>
+
+                {/* Fine-control slider */}
+                <input
+                    type="range"
+                    min={0.25}
+                    max={8}
+                    step={0.25}
+                    value={speed}
+                    onChange={e => setSpeed(Number(e.target.value))}
+                    style={{ width: '100px', accentColor: '#4FC3F7' }}
+                    title={`${speed}×`}
+                />
+                <span style={{ minWidth: '36px', color: '#546E7A' }}>{speed}×</span>
 
             </div>
+
+            {/* Body info panel — only rendered when a body is selected */}
+            {selectedBodyId && (
+                <BodyInfoPanel
+                    bodyId={selectedBodyId}
+                    onClose={clearSelection}
+                />
+            )}
         </div>
     )
 }

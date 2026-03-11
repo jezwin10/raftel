@@ -79,7 +79,7 @@ const BASE_DT = 3_600 * 14
  * Increasing this makes trails longer but does not affect physics.
  */
 
-const MAX_TRAIN_LENGTH = 200
+const MAX_TRAIL_LENGTH = 200
 
 //const DT = 3_600 * 14 // 14 simulated hours per animation frame
 
@@ -202,7 +202,7 @@ export function useSimulation(): SimulationControls{
                     if (trail) {
                         trail.push(body.position)
 
-                        if (trail.length > MAX_TRAIN_LENGTH) {
+                        if (trail.length > MAX_TRAIL_LENGTH) {
                             trail.shift()
                         }
                     }
