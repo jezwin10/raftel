@@ -108,6 +108,10 @@ export function BodyInfoPanel({ bodyId, onClose }: Props) {
     )
 }
 
+// ---------------------------------------------------------------------------
+// StatRow — small internal component for a label/value pair
+// ---------------------------------------------------------------------------
+
 /**
  * Extracted as its own component because the pattern repeats and we may
  * add more stat rows later. Keeping it co-located in this file (rather

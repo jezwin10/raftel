@@ -38,6 +38,20 @@ export const BODY_METADATA: Record<string, BodyMetadata> = {
         mass:          '1.989 × 10³⁰ kg',
         orbitalPeriod: 'N/A',
     },
+    mercury: {
+        displayName:   'Mercury',
+        description:   'The first planet from the sun, ' +
+            'it is the smallest planet in the solar system.',
+        mass:          '3.285 × 10²³ kg',
+        orbitalPeriod: '88 days',
+    },
+    venus: {
+        displayName:   'Venus',
+        description:   'The second planet in the solar system, ' +
+            'it is the hottest planet in the solar system.',
+        mass:          '4.867 × 10²⁴ kg',
+        orbitalPeriod: '225 days',
+    },
     earth: {
         displayName:   'Earth',
         description:   'The third planet from the Sun and the only known ' +

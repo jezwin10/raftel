@@ -1,198 +1,272 @@
-import { useEffect, useRef, useState } from 'react'
-import { SimulationEngine } from '../simulation-engine/SimulationEngine.ts'
-import { CanvasRenderer, bodyRadius } from '../infrastructure/rendering/CanvasRenderer.ts'
-import { Vector2 } from '../core/math/Vector2.ts'
-import type { CelestialBody } from '../core/models/CelestialBody.ts'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { render, renderHook, act } from '@testing-library/react'
+import { useSimulation } from '../../application/useSimulation.ts'
 
-const SCALE           = 6.0e-10
-const BASE_DT         = 3_600 * 14
-const MAX_TRAIL_LENGTH = 200
+/**
+ * Tests for useSimulation hook.
+ *
+ * --- WHY THIS FILE IS .tsx NOT .ts ---
+ * Some tests need to render a real <canvas> element so React can attach
+ * the canvasRef before the useEffect runs. JSX requires the .tsx extension.
+ *
+ * --- THE CORE PROBLEM: REFS AND renderHook ---
+ * renderHook mounts a hook in isolation — it does NOT render a DOM tree.
+ * The hook's canvasRef starts as null and stays null, because there is no
+ * <canvas> element for React to attach it to.
+ *
+ * Inside useEffect, the hook checks:
+ *   if (!canvas) return
+ *
+ * With no canvas in the DOM, the effect exits immediately — before calling
+ * requestAnimationFrame. This is correct production behaviour (the hook
+ * shouldn't crash if mounted without a canvas), but it means rAF tests
+ * need a real canvas in the DOM.
+ *
+ * --- SOLUTION: TWO RENDERING STRATEGIES ---
+ *
+ * 1. renderHook — for testing pure state (isPaused, speed, controls).
+ *    These tests don't need the animation loop to run. The canvas being
+ *    null is irrelevant because they only interact with returned values.
+ *
+ * 2. render(<TestSimulator />) — for testing the animation loop.
+ *    TestSimulator is a minimal component that renders a <canvas ref={canvasRef}>.
+ *    React attaches the DOM element to the ref, the effect runs fully,
+ *    and requestAnimationFrame gets called as expected.
+ *
+ * --- MOCKING HTMLCanvasElement.prototype.getContext ---
+ * jsdom provides a <canvas> element but its getContext() returns null
+ * (jsdom doesn't implement canvas rendering). We mock getContext on the
+ * prototype so any canvas element created in tests returns our fake context.
+ * This lets the effect proceed past the `if (!ctx) return` guard.
+ */
 
-const INITIAL_BODIES: CelestialBody[] = [
-    {
-        id:       'sun',
-        mass:     1.989e30,
-        position: new Vector2(0, 0),
-        velocity: new Vector2(0, 0),
-    },
-    {
-        id:       'earth',
-        mass:     5.972e24,
-        position: new Vector2(1.496e11, 0),
-        velocity: new Vector2(0, 29_783),
-    },
-    {
-        id:       'mars',
-        mass:     6.39e23,
-        position: new Vector2(2.279e11, 0),
-        velocity: new Vector2(0, 24_077),
-    },
-    {
-        id:       'jupiter',
-        mass:     1.898e27,
-        position: new Vector2(7.785e11, 0),
-        velocity: new Vector2(0, 13_069),
-    },
-]
+// ---------------------------------------------------------------------------
+// Mock canvas context
+// ---------------------------------------------------------------------------
 
-export interface SimulationControls {
-    canvasRef:      React.RefObject<HTMLCanvasElement | null>
-    isPaused:       boolean
-    togglePause:    () => void
-    speed:          number
-    setSpeed:       (value: number) => void
-    selectedBodyId: string | null
-    clearSelection: () => void
+const mockCtx = {
+    canvas:      { width: 100, height: 100 },
+    fillRect:    vi.fn(),
+    beginPath:   vi.fn(),
+    arc:         vi.fn(),
+    fill:        vi.fn(),
+    stroke:      vi.fn(),
+    moveTo:      vi.fn(),
+    lineTo:      vi.fn(),
+    fillStyle:   '',
+    strokeStyle: '',
+    lineWidth:   0,
+} as unknown as CanvasRenderingContext2D
+
+// ---------------------------------------------------------------------------
+// rAF mock setup
+// ---------------------------------------------------------------------------
+
+let rafCallback: FrameRequestCallback | null = null
+let rafIdCounter = 0
+
+const mockRaf = vi.fn((callback: FrameRequestCallback): number => {
+    rafCallback = callback
+    return ++rafIdCounter
+})
+
+const mockCancelRaf = vi.fn()
+
+function triggerFrame() {
+    if (rafCallback) {
+        rafCallback(performance.now())
+    }
 }
 
-export function useSimulation(): SimulationControls {
+// ---------------------------------------------------------------------------
+// Minimal test component
+// ---------------------------------------------------------------------------
 
-    const canvasRef = useRef<HTMLCanvasElement | null>(null)
-    const engineRef = useRef<SimulationEngine | null>(null)
-    const trailsRef = useRef<Map<string, Vector2[]>>(
-        new Map(INITIAL_BODIES.map(b => [b.id, []]))
+/**
+ * TestSimulator renders a <canvas> and attaches the hook's canvasRef to it.
+ *
+ * This is the minimal scaffolding needed for the effect to run fully.
+ * We don't need to expose controls from this component — the animation
+ * loop tests only care that rAF was called, not about control values.
+ */
+function TestSimulator() {
+    const { canvasRef } = useSimulation()
+    return <canvas ref={canvasRef} width={100} height={100} />
+}
+
+// ---------------------------------------------------------------------------
+// Test lifecycle
+// ---------------------------------------------------------------------------
+
+beforeEach(() => {
+    rafCallback   = null
+    rafIdCounter  = 0
+    mockRaf.mockClear()
+    mockCancelRaf.mockClear()
+
+    /**
+     * Mock getContext on the HTMLCanvasElement prototype.
+     * Every canvas element created in jsdom will now return our mockCtx
+     * instead of null. We cast to `any` because TypeScript's overloads
+     * for getContext are strict about the context type string.
+     */
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
+        mockCtx as any
     )
 
-    // Pause
-    const [isPaused, setIsPaused] = useState(false)
-    const isPausedRef             = useRef(false)
+    vi.stubGlobal('requestAnimationFrame', mockRaf)
+    vi.stubGlobal('cancelAnimationFrame', mockCancelRaf)
+})
 
-    const togglePause = () => {
-        isPausedRef.current = !isPausedRef.current
-        setIsPaused(isPausedRef.current)
-    }
+afterEach(() => {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+})
 
-    // Speed
-    const [speed, setSpeedState] = useState(1)
-    const speedRef               = useRef(1)
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
 
-    const setSpeed = (value: number) => {
-        speedRef.current = value
-        setSpeedState(value)
-    }
+describe('useSimulation', () => {
 
-    // Selected body
-    const [selectedBodyId, setSelectedBodyId] = useState<string | null>(null)
-    const clearSelection = () => setSelectedBodyId(null)
+    describe('return shape', () => {
+        it('returns a canvasRef', () => {
+            const { result } = renderHook(() => useSimulation())
+            expect(result.current.canvasRef).toBeDefined()
+            expect(result.current.canvasRef).toHaveProperty('current')
+        })
 
+        it('returns isPaused as false initially', () => {
+            const { result } = renderHook(() => useSimulation())
+            expect(result.current.isPaused).toBe(false)
+        })
 
-    useEffect(() => {
-        const canvas = canvasRef.current
-        if (!canvas) return
+        it('returns speed as 1 initially', () => {
+            const { result } = renderHook(() => useSimulation())
+            expect(result.current.speed).toBe(1)
+        })
 
-        const ctx = canvas.getContext('2d')
-        if (!ctx) return
+        it('returns togglePause as a function', () => {
+            const { result } = renderHook(() => useSimulation())
+            expect(typeof result.current.togglePause).toBe('function')
+        })
 
-        engineRef.current = new SimulationEngine(INITIAL_BODIES)
-        const renderer    = new CanvasRenderer(ctx)
+        it('returns setSpeed as a function', () => {
+            const { result } = renderHook(() => useSimulation())
+            expect(typeof result.current.setSpeed).toBe('function')
+        })
+    })
 
-        let animationId: number
+    // -----------------------------------------------------------------------
 
-        const loop = () => {
-            if (!isPausedRef.current) {
-                engineRef.current?.step(BASE_DT * speedRef.current)
+    describe('pause control', () => {
+        it('toggles isPaused to true when called once', () => {
+            const { result } = renderHook(() => useSimulation())
 
-                const bodies = engineRef.current?.getBodies() ?? []
-                for (const body of bodies) {
-                    const trail = trailsRef.current.get(body.id)
-                    if (trail) {
-                        trail.push(body.position)
-                        if (trail.length > MAX_TRAIL_LENGTH) trail.shift()
-                    }
-                }
-            }
+            act(() => { result.current.togglePause() })
 
-            renderer.draw(
-                engineRef.current?.getBodies() ?? [],
-                trailsRef.current,
-                SCALE
-            )
+            expect(result.current.isPaused).toBe(true)
+        })
 
-            animationId = requestAnimationFrame(loop)
-        }
+        it('toggles isPaused back to false when called twice', () => {
+            const { result } = renderHook(() => useSimulation())
 
-        animationId = requestAnimationFrame(loop)
+            act(() => {
+                result.current.togglePause()
+                result.current.togglePause()
+            })
 
+            expect(result.current.isPaused).toBe(false)
+        })
 
-        /**
-         * When a click fires on the canvas, we receive pixel coordinates
-         * relative to the page (clientX/Y). We need simulation coordinates.
-         *
-         * The transform applied during rendering is:
-         *   screenX = centerX + body.position.x * scale
-         *   screenY = centerY - body.position.y * scale
-         *
-         * Inverting that transform gives us simulation coordinates:
-         *   simX = (screenX - centerX) / scale
-         *   simY = (centerY - screenY) / scale   ← note the Y inversion
-         *
-         * getBoundingClientRect() gives us the canvas position and dimensions
-         * on screen, accounting for any CSS scaling or page scroll.
-         *
-         * We then iterate over every body and check whether the click falls
-         * within its rendered radius. This is a simple 2D distance check:
-         *   distance = √((simX - body.x)² + (simY - body.y)²)
-         *   hit if distance ≤ bodyRadius(body) / scale
-         *
-         * We divide the pixel radius by scale to compare in simulation space.
-         * Alternatively we could convert body positions to screen space and
-         * compare in pixels — both are equivalent, this is slightly cleaner.
-         *
-         * If multiple bodies overlap, we select the one whose centre is
-         * closest to the click point (nearest-body-wins).
-         */
-        const handleClick = (event: MouseEvent) => {
-            const bodies = engineRef.current?.getBodies() ?? []
-            if (bodies.length === 0) return
+        it('isPaused reflects an odd number of toggles', () => {
+            const { result } = renderHook(() => useSimulation())
 
-            const rect    = canvas.getBoundingClientRect()
-            const screenX = event.clientX - rect.left
-            const screenY = event.clientY - rect.top
+            act(() => {
+                result.current.togglePause() // true
+                result.current.togglePause() // false
+                result.current.togglePause() // true
+            })
 
-            const centerX = canvas.width  / 2
-            const centerY = canvas.height / 2
+            expect(result.current.isPaused).toBe(true)
+        })
+    })
 
-            const simX = (screenX - centerX) / SCALE
-            const simY = (centerY - screenY) / SCALE
+    // -----------------------------------------------------------------------
 
-            let closestId:   string | null = null
-            let closestDist: number        = Infinity
+    describe('speed control', () => {
+        it('updates speed when setSpeed is called', () => {
+            const { result } = renderHook(() => useSimulation())
 
-            for (const body of bodies) {
-                const dx       = simX - body.position.x
-                const dy       = simY - body.position.y
-                const dist     = Math.sqrt(dx * dx + dy * dy)
+            act(() => { result.current.setSpeed(3) })
 
-                // Convert the pixel radius to simulation units for comparison.
-                // We add a small tap target margin (× 3) so planets are
-                // comfortably clickable without pixel-perfect precision.
-                const hitRadius = (bodyRadius(body) * 3) / SCALE
+            expect(result.current.speed).toBe(3)
+        })
 
-                if (dist < hitRadius && dist < closestDist) {
-                    closestDist = dist
-                    closestId   = body.id
-                }
-            }
+        it('accepts fractional speed values', () => {
+            const { result } = renderHook(() => useSimulation())
 
-            // Clicking empty space clears the selection.
-            setSelectedBodyId(closestId)
-        }
+            act(() => { result.current.setSpeed(0.25) })
 
-        canvas.addEventListener('click', handleClick)
+            expect(result.current.speed).toBe(0.25)
+        })
 
-        return () => {
-            cancelAnimationFrame(animationId)
-            canvas.removeEventListener('click', handleClick)
-        }
-    }, [])
+        it('reflects the most recent setSpeed call', () => {
+            const { result } = renderHook(() => useSimulation())
 
-    return {
-        canvasRef,
-        isPaused,
-        togglePause,
-        speed,
-        setSpeed,
-        selectedBodyId,
-        clearSelection,
-    }
-}
+            act(() => {
+                result.current.setSpeed(2)
+                result.current.setSpeed(5)
+                result.current.setSpeed(0.5)
+            })
+
+            expect(result.current.speed).toBe(0.5)
+        })
+    })
+
+    // -----------------------------------------------------------------------
+
+    describe('animation loop', () => {
+        it('calls requestAnimationFrame on mount', () => {
+            /**
+             * render(<TestSimulator />) gives the hook a real <canvas> element.
+             * React attaches it to canvasRef before the effect runs.
+             * The effect proceeds past both null guards and calls rAF.
+             *
+             * contrast with renderHook: canvasRef.current stays null,
+             * the effect returns early, rAF is never called.
+             */
+            render(<TestSimulator />)
+
+            expect(mockRaf).toHaveBeenCalled()
+        })
+
+        it('calls requestAnimationFrame again after each frame', () => {
+            render(<TestSimulator />)
+
+            const callsAfterMount = mockRaf.mock.calls.length
+
+            /**
+             * triggerFrame() manually invokes the captured rAF callback,
+             * simulating one animation frame firing. The loop body runs,
+             * and at the end schedules the next frame with another rAF call.
+             */
+            act(() => { triggerFrame() })
+
+            expect(mockRaf.mock.calls.length).toBeGreaterThan(callsAfterMount)
+        })
+
+        it('cancels the animation loop on unmount', () => {
+            const { unmount } = render(<TestSimulator />)
+
+            unmount()
+
+            /**
+             * React calls the useEffect cleanup on unmount.
+             * Our cleanup calls cancelAnimationFrame(animationId).
+             * Without this, the loop continues after the component is gone.
+             */
+            expect(mockCancelRaf).toHaveBeenCalled()
+        })
+    })
+})
