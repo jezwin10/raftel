@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { SimulationEngine } from './simulation-engine/SimulationEngine.ts'
 import { CanvasRenderer, bodyRadius } from '../infrastructure/rendering/CanvasRenderer.ts'
 import { Vector2 } from '../core/math/Vector2.ts'
+import { keplerianToCartesian } from "../core/physics/orbits.ts";
 import type { CelestialBody } from '../core/models/CelestialBody.ts'
 
 // ---------------------------------------------------------------------------
@@ -12,42 +13,49 @@ const SCALE           = 6.0e-10
 const BASE_DT         = 3_600 * 14
 const MAX_TRAIL_LENGTH = 200
 
+const M_SUN = 1.989e30
+const mercuryState = keplerianToCartesian({ semiMajorAxis: 0.528e11, eccentricity: 0.21, centralMass: M_SUN })
+const venusState = keplerianToCartesian({ semiMajorAxis: 1.089e11, eccentricity: 0.007, centralMass: M_SUN })
+const earthState = keplerianToCartesian({ semiMajorAxis: 1.496e11, eccentricity: 0.0167, centralMass: M_SUN })
+const marsState = keplerianToCartesian({ semiMajorAxis: 2.279e11, eccentricity: 0.0934, centralMass: M_SUN })
+const jupiterState = keplerianToCartesian({ semiMajorAxis: 7.785e11, eccentricity: 0.0489, centralMass: M_SUN })
+
 const INITIAL_BODIES: CelestialBody[] = [
     {
         id:       'sun',
-        mass:     1.989e30,
+        mass:     M_SUN,
         position: new Vector2(0, 0),
         velocity: new Vector2(0, 0),
     },
     {
         id: 'mercury',
         mass: 3.285e23,
-        position: new Vector2(0.528e11, 0),
-        velocity: new Vector2(0, 50_141),
+        position: mercuryState.position,
+        velocity: mercuryState.velocity,
     },
     {
         id: 'venus',
         mass: 4.867e24,
-        position: new Vector2(1.089e11, 0),
-        velocity: new Vector2(0, 34_913),
+        position: venusState.position,
+        velocity: venusState.velocity,
     },
     {
         id:       'earth',
         mass:     5.972e24,
-        position: new Vector2(1.496e11, 0),
-        velocity: new Vector2(0, 29_783),
+        position: earthState.position,
+        velocity: earthState.velocity,
     },
     {
         id:       'mars',
         mass:     6.39e23,
-        position: new Vector2(2.279e11, 0),
-        velocity: new Vector2(0, 24_077),
+        position: marsState.position,
+        velocity: marsState.velocity,
     },
     {
         id:       'jupiter',
         mass:     1.898e27,
-        position: new Vector2(7.785e11, 0),
-        velocity: new Vector2(0, 13_069),
+        position: jupiterState.position,
+        velocity: jupiterState.velocity,
     },
 ]
 
