@@ -3,7 +3,6 @@
  *
  * Serves as the landing overview of the Raftel Platform.
  * Content-only component — no routing or layout logic.
- * Test
  */
 import { Section } from "../components/Section.tsx"
 import { Card } from "../components/Card"
